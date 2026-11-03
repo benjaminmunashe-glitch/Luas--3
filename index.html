@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>myLUAS · Live Luas assistant</title>
+<meta name="description" content="myLUAS: live Luas tram times with a chat assistant that checks real-time data on every answer.">
+<meta name="theme-color" content="#0a0e13">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='.5' stop-color='%23e4002b'/%3E%3Cstop offset='.5' stop-color='%2300b04f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Crect x='10' y='7' width='12' height='13' rx='3' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M10 14h12M12 25l1.5-5M20 25l-1.5-5' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0a0e13;
+    --surface:#121820;
+    --surface-2:#18202a;
+    --surface-3:#212b37;
+    --border:rgba(255,255,255,.07);
+    --border-2:rgba(255,255,255,.12);
+    --text:#f2f5f8;
+    --text-2:#a3afbd;
+    --text-3:#6b7887;
+    --red:#e4002b;
+    --red-soft:rgba(228,0,43,.15);
+    --green:#00b04f;
+    --green-soft:rgba(0,176,79,.15);
+    --accent:var(--red);
+    --accent-soft:var(--red-soft);
+    --amber:#ffb020;
+    --amber-soft:rgba(255,176,32,.10);
+    --danger:#ff5a6e;
+    --danger-soft:rgba(255,90,110,.10);
+    --radius-lg:22px;
+    --radius:16px;
+    --radius-sm:12px;
+    --appbar-h:64px;
+    --tabbar-h:66px;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  body[data-line="red"]{ --accent:var(--red); --accent-soft:var(--red-soft); }
+  body[data-line="green"]{ --accent:var(--green); --accent-soft:var(--green-soft); }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    background:
+      radial-gradient(900px 420px at 50% -180px, var(--accent-soft), transparent 70%),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:var(--font);
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  button{ font:inherit; color:inherit; }
+  .wrap{ width:100%; max-width:1180px; margin:0 auto; padding:0 16px; }
+  [hidden]{ display:none !important; }
+  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  /* ================= App bar ================= */
+  .appbar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(10,14,19,.84);
+    backdrop-filter:saturate(160%) blur(14px);
+    -webkit-backdrop-filter:saturate(160%) blur(14px);
+    border-bottom:1px solid var(--border);
+    padding-top:env(safe-area-inset-top);
+  }
+  .appbar .wrap{ display:flex; align-items:center; justify-content:space-between; height:var(--appbar-h); gap:12px; }
+  .brand{ display:flex; align-items:center; gap:12px; margin:0; min-width:0; }
+  .logo-mark{
+    width:40px; height:40px; border-radius:12px; display:grid; place-items:center; flex:none;
+    background:linear-gradient(135deg,var(--red) 0 50%,var(--green) 50% 100%);
+    box-shadow:0 6px 18px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.12);
+  }
+  .logo-mark svg{ width:22px; height:22px; }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+  .brand-name{ font-size:1.35rem; font-weight:800; letter-spacing:-.02em; }
+  .brand-name .thin{ font-weight:500; color:var(--text-2); }
+  .brand-sub{ font-size:.72rem; color:var(--text-3); font-weight:600; letter-spacing:.04em; }
+  .bar-actions{ display:flex; align-items:center; gap:8px; }
+
+  .icon-btn{
+    width:44px; height:44px; border-radius:50%; border:1px solid var(--border);
+    background:var(--surface-2); color:var(--text); display:grid; place-items:center; flex:none;
+    cursor:pointer; transition:background .2s, transform .15s, border-color .2s, color .2s;
+  }
+  .icon-btn:hover{ background:var(--surface-3); }
+  .icon-btn:active{ transform:scale(.93); }
+  .icon-btn svg{ width:20px; height:20px; }
+  .icon-btn.spin svg{ animation:spin .8s linear infinite; }
+  .icon-btn.on{ color:var(--amber); border-color:rgba(255,176,32,.4); }
+  .icon-btn:focus-visible, .chip:focus-visible, .tab:focus-visible, .composer input:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .progress{ height:3px; overflow:hidden; }
+  .progress span{ display:block; height:100%; width:0; background:var(--accent); opacity:.85; }
+  .progress span.run{ animation:fill 20s linear forwards; }
+  @keyframes fill{ from{ width:0; } to{ width:100%; } }
+
+  /* ================= Layout ================= */
+  main{ flex:1; padding:18px 0 28px; }
+  .layout{ display:grid; gap:22px; grid-template-columns:minmax(0,1fr); }
+  .view{ min-width:0; }
+  html,body{ overflow-x:hidden; }
+  @media (min-width:980px){
+    .layout{ grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); align-items:start; }
+    .view{ display:block !important; }
+    .tabbar{ display:none !important; }
+    .chat-panel{ position:sticky; top:calc(var(--appbar-h) + 20px); height:calc(100vh - var(--appbar-h) - 44px); }
+  }
+  @media (max-width:979px){
+    .view{ display:none; }
+    .view.active{ display:block; }
+    main{ padding-bottom:calc(var(--tabbar-h) + 20px + env(safe-area-inset-bottom)); }
+    .chat-panel{
+      height:calc(100vh - var(--appbar-h) - var(--tabbar-h) - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      height:calc(100dvh - var(--appbar-h) - var(--tabbar-h) - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      min-height:420px;
+    }
+    body.mode-ask footer{ display:none; }
+  }
+
+  /* ================= Stop picker ================= */
+  .picker{
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:8px 8px 8px 14px; margin-bottom:12px; transition:border-color .2s, box-shadow .2s;
+  }
+  .picker:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .picker .pin{ color:var(--accent); flex:none; display:grid; }
+  .picker .pin svg{ width:22px; height:22px; }
+  .picker-body{ flex:1; min-width:0; position:relative; }
+  .picker-label{ display:block; font-size:.68rem; text-transform:uppercase; letter-spacing:.1em; color:var(--text-3); font-weight:700; }
+  select{
+    width:100%; font:inherit; font-size:1.08rem; font-weight:650; color:var(--text);
+    background:transparent; border:0; padding:2px 28px 4px 0; appearance:none; -webkit-appearance:none;
+    cursor:pointer; text-overflow:ellipsis;
+  }
+  select:focus{ outline:none; }
+  select option, select optgroup{ background:var(--surface-2); color:var(--text); }
+  .chev{ position:absolute; right:4px; bottom:8px; pointer-events:none; color:var(--text-3); }
+  .chev svg{ width:16px; height:16px; }
+
+  .favs{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 6px; margin-bottom:12px; scrollbar-width:none; }
+  .favs::-webkit-scrollbar{ display:none; }
+  .fav{
+    flex:none; display:inline-flex; align-items:center; gap:7px;
+    border:1px solid var(--border); background:var(--surface); color:var(--text-2);
+    border-radius:999px; padding:8px 13px; font-size:.86rem; font-weight:600; cursor:pointer;
+    transition:background .2s, color .2s, border-color .2s;
+  }
+  .fav:hover{ background:var(--surface-2); color:var(--text); }
+  .fav .ld{ width:8px; height:8px; border-radius:50%; }
+  .fav.current{ color:var(--text); border-color:var(--border-2); background:var(--surface-2); }
+
+  /* ================= Hero ================= */
+  .hero{ margin:6px 0 18px; }
+  .hero-top{ display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+  .pill{
+    display:inline-flex; align-items:center; gap:6px; font-size:.75rem; font-weight:700;
+    padding:5px 10px; border-radius:999px; letter-spacing:.02em;
+  }
+  .pill-line{ background:var(--accent); color:#fff; }
+  .pill-live{ background:var(--surface-2); color:var(--text-2); border:1px solid var(--border); }
+  .pill-live .dot{ width:7px; height:7px; border-radius:50%; background:var(--green); animation:ping 2s infinite; }
+  .pill-live.loading .dot{ background:var(--amber); animation:blink 1s infinite; }
+  .pill-live.error .dot{ background:var(--danger); animation:none; }
+  @keyframes ping{ 0%{ box-shadow:0 0 0 0 rgba(0,176,79,.55); } 70%{ box-shadow:0 0 0 7px rgba(0,176,79,0); } 100%{ box-shadow:0 0 0 0 rgba(0,176,79,0); } }
+  @keyframes blink{ 50%{ opacity:.3; } }
+  .hero h2{ margin:0; font-size:clamp(2rem,7.5vw,2.7rem); font-weight:800; letter-spacing:-.035em; line-height:1.08; }
+  .updated{ margin:6px 0 0; color:var(--text-3); font-size:.85rem; font-variant-numeric:tabular-nums; }
+
+  /* ================= Banners ================= */
+  .banner{
+    display:flex; gap:12px; align-items:flex-start;
+    border-radius:var(--radius); padding:14px 16px; margin-bottom:14px; font-size:.95rem;
+    border:1px solid var(--border);
+  }
+  .banner svg{ width:20px; height:20px; flex:none; margin-top:1px; }
+  .banner-title{ display:block; font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; margin-bottom:3px; }
+  .banner.error{ background:var(--danger-soft); border-color:rgba(255,90,110,.3); color:#ffd3d9; }
+  .banner.error svg, .banner.error .banner-title{ color:var(--danger); }
+  .banner.message{ background:var(--amber-soft); border-color:rgba(255,176,32,.25); color:#f7e3b8; }
+  .banner.message svg, .banner.message .banner-title{ color:var(--amber); }
+  .banner.message.ok{ background:var(--green-soft); border-color:rgba(0,176,79,.28); color:#c9f0d9; }
+  .banner.message.ok svg, .banner.message.ok .banner-title{ color:var(--green); }
+
+  /* ================= Direction cards ================= */
+  .dirs{ display:grid; gap:14px; transition:opacity .3s; }
+  @media (min-width:640px){ .dirs{ grid-template-columns:1fr 1fr; } }
+  .stale .dirs{ opacity:.5; }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.25);
+    animation:rise .35s ease both;
+  }
+  @keyframes rise{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+  .card-head{
+    display:flex; align-items:center; gap:10px; padding:14px 16px 0;
+    color:var(--text-2); font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.09em;
+  }
+  .card-head .arrow{
+    width:28px; height:28px; border-radius:9px; background:var(--accent-soft); color:var(--accent);
+    display:grid; place-items:center; flex:none;
+  }
+  .card-head .arrow svg{ width:16px; height:16px; }
+  .next{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; padding:14px 16px 16px; }
+  .next .label{ font-size:.75rem; color:var(--text-3); font-weight:600; margin-bottom:4px; }
+  .next .dest{ font-size:1.25rem; font-weight:700; letter-spacing:-.01em; overflow-wrap:anywhere; }
+  .eta{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; flex:none; }
+  .eta b{ font-weight:800; letter-spacing:-.05em; line-height:.9; }
+  .eta small{ font-size:.9rem; color:var(--text-2); font-weight:600; margin-left:4px; }
+  .next .eta b{ font-size:clamp(3.4rem,15vw,4.3rem); }
+  .eta.now b{ color:var(--accent); }
+  .next .eta.now b{ font-size:clamp(2.4rem,11vw,3rem); letter-spacing:-.03em; }
+  .eta.now{ animation:blink 1.6s infinite; }
+  .later{ list-style:none; margin:0; padding:4px 8px 8px; background:var(--surface-2); border-top:1px solid var(--border); }
+  .later li{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 8px; }
+  .later li + li{ border-top:1px solid var(--border); }
+  .later .dest{ font-size:1rem; font-weight:600; color:var(--text-2); overflow-wrap:anywhere; }
+  .later .eta b{ font-size:1.9rem; }
+  .more{ padding:0 16px 12px; background:var(--surface-2); color:var(--text-3); font-size:.8rem; }
+  .empty{ padding:18px 16px 20px; color:var(--text-3); font-size:.95rem; }
+  .skeleton{ padding:16px; }
+  .skel-line{ height:14px; border-radius:7px; background:linear-gradient(90deg,var(--surface-2),var(--surface-3),var(--surface-2)); background-size:200% 100%; animation:shimmer 1.2s infinite; margin:10px 0; }
+  .skel-line.short{ width:45%; }
+  .skel-line.big{ height:48px; width:40%; margin-left:auto; }
+  @keyframes shimmer{ to{ background-position:-200% 0; } }
+
+  .ask-strip{ margin-top:20px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; }
+  .ask-strip h3{ margin:0 0 4px; font-size:1rem; display:flex; align-items:center; gap:8px; }
+  .ask-strip p{ margin:0 0 12px; color:var(--text-3); font-size:.88rem; }
+
+  /* ================= Chips ================= */
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{
+    border:1px solid var(--border-2); background:var(--surface-2); color:var(--text);
+    border-radius:999px; padding:8px 13px; font-size:.86rem; font-weight:600; cursor:pointer;
+    transition:background .2s, border-color .2s, transform .15s; text-align:left;
+  }
+  .chip:hover{ background:var(--surface-3); border-color:var(--accent); }
+  .chip:active{ transform:scale(.96); }
+
+  /* ================= Chat ================= */
+  .chat-panel{
+    display:flex; flex-direction:column; background:var(--surface);
+    border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);
+  }
+  .chat-head{ display:flex; align-items:center; gap:12px; padding:12px 12px 12px 16px; border-bottom:1px solid var(--border); }
+  .bot-avatar{
+    width:40px; height:40px; border-radius:13px; flex:none; display:grid; place-items:center;
+    background:linear-gradient(135deg,var(--red),var(--green)); box-shadow:0 4px 14px rgba(0,0,0,.35);
+  }
+  .bot-avatar svg{ width:22px; height:22px; }
+  .chat-title{ flex:1; min-width:0; }
+  .chat-title strong{ display:block; font-size:1rem; }
+  .chat-title span{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--text-3); }
+  .chat-title .dot{ width:7px; height:7px; border-radius:50%; background:var(--green); }
+
+  .watch-bar{ display:flex; gap:8px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid var(--border); background:rgba(255,176,32,.06); }
+  .watch-chip{ max-width:100%; display:inline-flex; align-items:center; gap:8px; font-size:.8rem; font-weight:600; color:#f7e3b8; background:var(--amber-soft); border:1px solid rgba(255,176,32,.3); border-radius:999px; padding:5px 6px 5px 11px; }
+  .watch-chip button{ border:0; background:rgba(255,255,255,.08); width:22px; height:22px; border-radius:50%; cursor:pointer; display:grid; place-items:center; font-size:.8rem; }
+
+  .chat-log{ flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:12px; overscroll-behavior:contain; }
+  .msg{ max-width:90%; animation:rise .25s ease both; font-size:.96rem; overflow-wrap:anywhere; }
+  .msg p{ margin:0 0 8px; }
+  .msg p:last-child{ margin-bottom:0; }
+  .msg.user{ align-self:flex-end; background:var(--accent); color:#fff; border-radius:18px 18px 5px 18px; padding:10px 14px; font-weight:500; }
+  .msg.bot{ align-self:flex-start; background:var(--surface-2); border:1px solid var(--border); border-radius:18px 18px 18px 5px; padding:12px 14px; }
+  .msg.bot.err{ border-color:rgba(255,90,110,.35); background:linear-gradient(0deg,var(--danger-soft),var(--danger-soft)),var(--surface-2); }
+  .msg.bot.alert{ border-color:rgba(255,176,32,.45); background:linear-gradient(0deg,var(--amber-soft),var(--amber-soft)),var(--surface-2); }
+  .msg strong{ color:#fff; }
+  .msg .chips{ margin-top:10px; }
+  .msg .chip{ font-size:.82rem; padding:7px 11px; background:var(--surface); }
+
+  .mini{ background:var(--surface); border:1px solid var(--border); border-radius:14px; margin:10px 0; overflow:hidden; }
+  .mini-title{ font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--text-3); padding:9px 12px 3px; }
+  .mini-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 12px; }
+  .mini-row + .mini-row{ border-top:1px solid var(--border); }
+  .mini-row:last-child{ padding-bottom:9px; }
+  .mini-dest{ font-weight:600; min-width:0; }
+  .mini-dest small{ display:block; font-weight:500; color:var(--text-3); font-size:.76rem; }
+  .mini-eta{ font-weight:800; font-size:1.3rem; letter-spacing:-.03em; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .mini-eta small{ font-size:.75rem; color:var(--text-2); font-weight:600; letter-spacing:0; margin-left:2px; }
+  .mini-eta.now{ color:var(--accent); }
+  .mini-row.dim{ opacity:.45; }
+  .mini-row.hl{ background:var(--accent-soft); }
+  .mini-empty{ padding:6px 12px 10px; color:var(--text-3); font-size:.88rem; }
+
+  .verify{ display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; margin-top:10px; font-size:.75rem; color:var(--text-3); }
+  .verify .ok{ display:inline-flex; align-items:center; gap:5px; color:#7fd9a6; font-weight:600; }
+  .verify .ok svg{ width:13px; height:13px; }
+  .verify button{ border:0; background:none; color:var(--text-2); font-size:.75rem; font-weight:700; cursor:pointer; padding:2px 0; text-decoration:underline; text-underline-offset:3px; }
+  .verify button:hover{ color:var(--text); }
+
+  .typing{ display:inline-flex; gap:5px; padding:14px 16px; }
+  .typing i{ width:7px; height:7px; border-radius:50%; background:var(--text-3); animation:bounce 1.2s infinite; }
+  .typing i:nth-child(2){ animation-delay:.15s; } .typing i:nth-child(3){ animation-delay:.3s; }
+  @keyframes bounce{ 0%,60%,100%{ transform:none; opacity:.5; } 30%{ transform:translateY(-5px); opacity:1; } }
+  .typing-label{ font-size:.75rem; color:var(--text-3); margin-left:6px; align-self:center; }
+
+  .composer{ display:flex; gap:8px; padding:10px; border-top:1px solid var(--border); background:var(--surface); }
+  .composer input{
+    flex:1; min-width:0; font:inherit; font-size:16px; color:var(--text);
+    background:var(--surface-2); border:1px solid var(--border-2); border-radius:999px; padding:12px 16px;
+  }
+  .composer input::placeholder{ color:var(--text-3); }
+  .composer input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .send{ background:var(--accent) !important; border-color:transparent !important; color:#fff !important; }
+  .send:disabled{ opacity:.5; cursor:default; }
+  .mic.listening{ background:var(--danger) !important; color:#fff !important; animation:blink 1s infinite; }
+
+  /* ================= Tab bar (mobile) ================= */
+  .tabbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:flex; justify-content:center; gap:8px;
+    padding:8px 16px calc(8px + env(safe-area-inset-bottom));
+    background:rgba(10,14,19,.9); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border-top:1px solid var(--border);
+  }
+  .tab{
+    position:relative; flex:1; max-width:220px; display:flex; flex-direction:column; align-items:center; gap:3px;
+    border:0; background:none; color:var(--text-3); font-size:.75rem; font-weight:700; cursor:pointer;
+    padding:6px 0; border-radius:14px;
+  }
+  .tab svg{ width:24px; height:24px; }
+  .tab.active{ color:var(--text); background:var(--surface-2); }
+  .tab.active svg{ color:var(--accent); }
+  .tab .badge{ position:absolute; top:4px; right:calc(50% - 20px); width:9px; height:9px; border-radius:50%; background:var(--amber); box-shadow:0 0 0 2px var(--bg); }
+
+  .toast{
+    position:fixed; left:50%; bottom:calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom)); transform:translate(-50%,20px);
+    background:var(--surface-3); color:var(--text); border:1px solid var(--border-2); border-radius:999px;
+    padding:10px 16px; font-size:.88rem; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.4);
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:40; max-width:calc(100% - 32px); text-align:center;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+  @media (min-width:980px){ .toast{ bottom:28px; } }
+
+  footer{ color:var(--text-3); font-size:.8rem; text-align:center; padding:18px 0 calc(20px + env(safe-area-inset-bottom)); }
+  footer p{ margin:2px 0; }
+  @media (max-width:979px){ footer{ padding-bottom:calc(var(--tabbar-h) + 20px + env(safe-area-inset-bottom)); margin-top:-20px; } }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body data-line="red">
+
+  <header class="appbar">
+    <div class="wrap">
+      <h1 class="brand">
+        <span class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 10.5h14M9 21l1.5-4M15 21l-1.5-4M10 6.5h4"/></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name"><span class="thin">my</span>LUAS</span>
+          <span class="brand-sub">Live tram assistant</span>
+        </span>
+      </h1>
+      <div class="bar-actions">
+        <button class="icon-btn" id="refreshBtn" type="button" aria-label="Refresh now" title="Refresh now">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  </header>
+
+  <main>
+    <div class="wrap layout">
+
+      <!-- ============ LIVE VIEW ============ -->
+      <section class="view active" id="view-live" aria-label="Live departures">
+        <div id="content">
+          <div class="picker">
+            <span class="pin" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            </span>
+            <label class="picker-body" for="stopSelect">
+              <span class="picker-label">Your stop</span>
+              <select id="stopSelect"><option>Loading stops…</option></select>
+              <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+            </label>
+            <button class="icon-btn" id="nearBtn" type="button" aria-label="Find my nearest stop" title="Nearest stop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
+            </button>
+            <button class="icon-btn" id="favBtn" type="button" aria-label="Add to favourites" aria-pressed="false" title="Favourite">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>
+            </button>
+          </div>
+
+          <div class="favs" id="favs" hidden></div>
+
+          <section class="hero">
+            <div class="hero-top">
+              <span class="pill pill-line" id="lineTag" hidden></span>
+              <span class="pill pill-live loading" id="live" aria-live="polite"><span class="dot"></span><span id="liveText">Connecting</span></span>
+            </div>
+            <h2 id="stopName">—</h2>
+            <p class="updated" id="updated">Last updated: never</p>
+          </section>
+
+          <div class="banner error" id="error" role="alert" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+            <div><span class="banner-title">Problem loading data</span><span id="errorText"></span></div>
+          </div>
+
+          <div class="banner message" id="message" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <div><span class="banner-title">Service update</span><span id="messageText"></span></div>
+          </div>
+
+          <div class="dirs" id="dirs"></div>
+
+          <div class="ask-strip">
+            <h3>💬 Ask myLUAS</h3>
+            <p>Questions about this stop, checked against live data.</p>
+            <div class="chips" id="quickAsks"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ASK VIEW ============ -->
+      <section class="view" id="view-ask" aria-label="Chat assistant">
+        <div class="chat-panel">
+          <div class="chat-head">
+            <span class="bot-avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+            </span>
+            <div class="chat-title">
+              <strong>Ask myLUAS</strong>
+              <span><span class="dot"></span>Live data on every answer</span>
+            </div>
+            <button class="icon-btn" id="speakBtn" type="button" aria-pressed="false" aria-label="Read answers aloud" title="Read answers aloud">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+            </button>
+            <button class="icon-btn" id="clearBtn" type="button" aria-label="Clear chat" title="Clear chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            </button>
+          </div>
+          <div class="watch-bar" id="watchBar" hidden></div>
+          <div class="chat-log" id="chatLog" role="log" aria-live="polite"></div>
+          <form class="composer" id="composer" autocomplete="off">
+            <label class="sr" for="chatInput">Ask a question</label>
+            <input id="chatInput" type="text" placeholder="e.g. Next tram from Jervis to Tallaght?" enterkeyhint="send">
+            <button class="icon-btn mic" id="micBtn" type="button" aria-label="Speak your question" title="Speak" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            </button>
+            <button class="icon-btn send" id="sendBtn" type="submit" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+          </form>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>Data: Transport Infrastructure Ireland. Built by Uncle B for BDAIB.</p>
+      <p id="relayNote" hidden></p>
+    </div>
+  </footer>
+
+  <nav class="tabbar" aria-label="Sections">
+    <button class="tab active" type="button" data-view="live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 10.5h14M9 21l1.5-4M15 21l-1.5-4"/></svg>
+      Live
+    </button>
+    <button class="tab" type="button" data-view="ask">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+      Ask
+      <span class="badge" id="askBadge" hidden></span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+const API = 'https://luas-class.kluxy.app';
+const K_STOP = 'myLUAS.stop', K_FAVS = 'myLUAS.favs', K_SPEAK = 'myLUAS.speak';
+const DEFAULT_STOP = 'MYS';
+const REFRESH_MS = 20000;
+const TIMEOUT_MS = 10000;
+
+/* ===== ENGINE START =====
+   Language understanding + Luas network reasoning. No DOM, no network. */
+const RED_CORE = ['BUS','ABB','JER','FOU','SMI','MUS','HEU','JAM','FAT','RIA','SUI','GOL','DRI','BLA','BLU','KYL','RED','KIN','BEL'];
+const RED_POINT = ['TPT','SDK','MYS','GDK'];
+const RED_TALLAGHT = ['COO','HOS','TAL'];
+const RED_SAGGART = ['FET','CVN','CIT','FOR','SAG'];
+
+const ALIASES = {
+  TPT:['point','the point','3arena','3 arena','point depot'],
+  MYS:['mayor square','mayor sq','nci','mayor square nci'],
+  GDK:['georges dock','george dock','georges'],
+  CON:['connolly station'],
+  BUS:['busaras','bus aras','central bus station'],
+  ABB:['abbey st','abbey'],
+  FOU:['four courts','4 courts'],
+  HEU:['heuston station'],
+  JAM:['james','jamess','st james','st jamess','st james hospital','james hospital','james s'],
+  RED:['red cow'],
+  TAL:['the square','tallaght square'],
+  HOS:['tallaght hospital'],
+  CIT:['citywest','city west','citywest campus'],
+  BRD:['broadstone','tu dublin'],
+  OUP:['o connell upper','oconnell upper','upper o connell','upper oconnell'],
+  OGP:['gpo','o connell gpo','oconnell gpo','o connell','oconnell','o connell st','o connell street','oconnell street'],
+  STS:['stephens green','st stephens green','stephen s green','ssg','st stephen s green'],
+  BRI:['brides glen','bride s glen','bridesglen'],
+  GAL:['gallops','the gallops'],
+  LEO:['leopardstown','leopardstown valley'],
+  BAW:['ballyogan','ballyogan wood'],
+  CPK:['central park'],
+  WIN:['windy arbour','windy arbor'],
+  BRO:['broombridge','broom bridge'],
+  DUN:['dundrum','dundrum town centre']
+};
+
+const STOP_WORDS = new Set(('a an the to from at in on of for and or but is are was be am im i me my we us you your it its this that ' +
+  'what whats when whens where which who how why can could should would will shall do does did get got go going ' +
+  'next tram trams luas train trains stop stops station line lines red green time times min mins minute minutes hour hours ' +
+  'now soon today tonight morning evening please thanks thank hi hello hey there here any some many much long far ' +
+  'leave leaving catch make walk walking away near nearest closest status delay delays service services running ' +
+  'inbound outbound town city centre center remind reminder notify alert tell let know when due set change help ' +
+  'with about than then just only also want need take takes journey route trip way first last until till before ' +
+  'after right left up down out over into ok okay yes no not dont cant wont more less quick fast slow').split(/\s+/));
+
+const NUM_WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10, eleven:11, twelve:12,
+  thirteen:13, fourteen:14, fifteen:15, sixteen:16, seventeen:17, eighteen:18, nineteen:19, twenty:20, thirty:30, forty:40, fifty:50, sixty:60 };
+
+function norm(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’`]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function lev(a, b) {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i), cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+function haversine(a, b) {
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function createEngine(stopsIn) {
+  const stops = stopsIn.filter(s => s && s.id && s.name);
+  const byId = new Map(stops.map(s => [s.id, s]));
+  const ids = new Set(byId.keys());
+
+  // --- routes (real Luas branch structure, with a safe fallback) ---
+  const routes = [];
+  const redRoutes = [
+    [...RED_POINT, ...RED_CORE, ...RED_TALLAGHT],
+    [...RED_POINT, ...RED_CORE, ...RED_SAGGART],
+    ['CON', ...RED_CORE, ...RED_TALLAGHT],
+    ['CON', ...RED_CORE, ...RED_SAGGART]
+  ];
+  if (redRoutes.every(r => r.every(id => ids.has(id)))) redRoutes.forEach(r => routes.push({ line: 'red', ids: r }));
+  else routes.push({ line: 'red', ids: stops.filter(s => s.line === 'red').map(s => s.id) });
+  routes.push({ line: 'green', ids: stops.filter(s => s.line === 'green').map(s => s.id) });
+
+  // --- name index ---
+  const keys = [];
+  const addKey = (id, k) => { k = norm(k); if (k.length >= 3 && !keys.some(x => x.k === k)) keys.push({ id, k }); };
+  stops.forEach(s => {
+    addKey(s.id, s.name);
+    addKey(s.id, s.name.replace(/^the\s+/i, ''));
+    (ALIASES[s.id] || []).forEach(a => addKey(s.id, a));
+  });
+  keys.sort((a, b) => b.k.length - a.k.length);
+
+  function findStops(text, opts = {}) {
+    const fuzzy = opts.fuzzy !== false;
+    const n = ' ' + norm(text) + ' ';
+    const taken = new Array(n.length).fill(false);
+    const isFree = (s, e) => { for (let j = s; j < e; j++) if (taken[j]) return false; return true; };
+    const mark = (s, e) => { for (let j = s; j < e; j++) taken[j] = true; };
+    const found = [];
+
+    for (const { id, k } of keys) {
+      const pat = ' ' + k + ' ';
+      let from = 0, i;
+      while ((i = n.indexOf(pat, from)) !== -1) {
+        const s = i + 1, e = s + k.length;
+        if (isFree(s, e)) { mark(s, e); found.push({ id, start: s, end: e, how: 'exact' }); }
+        from = i + 1;
+      }
+    }
+    // Stop codes typed in capitals, e.g. "MYS"
+    const codeRe = /\b([A-Z]{3})\b/g; let m;
+    while ((m = codeRe.exec(String(text)))) {
+      const code = m[1];
+      if (!byId.has(code) || code === 'RED') continue;
+      const pat = ' ' + code.toLowerCase() + ' ';
+      const i = n.indexOf(pat);
+      if (i !== -1 && isFree(i + 1, i + 4)) { mark(i + 1, i + 4); found.push({ id: code, start: i + 1, end: i + 4, how: 'code' }); }
+    }
+    // Typo-tolerant matching on what's left
+    if (fuzzy) {
+      const words = n.trim().split(' ').filter(Boolean);
+      let pos = 1; const wpos = words.map(w => { const p = pos; pos += w.length + 1; return p; });
+      for (let len = 3; len >= 1; len--) {
+        for (let a = 0; a + len <= words.length; a++) {
+          const seg = words.slice(a, a + len);
+          if (STOP_WORDS.has(seg[0]) || STOP_WORDS.has(seg[seg.length - 1]) || seg.some(w => /^\d+$/.test(w))) continue;
+          const phrase = seg.join(' ');
+          if (phrase.length < 5) continue;
+          const s = wpos[a], e = wpos[a + len - 1] + words[a + len - 1].length;
+          if (!isFree(s, e)) continue;
+          const tol = phrase.length >= 8 ? 2 : 1;
+          let best = null, bd = 99;
+          for (const { id, k } of keys) {
+            if (Math.abs(k.length - phrase.length) > tol) continue;
+            const d = lev(phrase, k);
+            if (d < bd) { bd = d; best = id; }
+          }
+          if (best && bd <= tol) { mark(s, e); found.push({ id: best, start: s, end: e, how: 'fuzzy', heard: phrase }); }
+        }
+      }
+    }
+    return found.sort((x, y) => x.start - y.start);
+  }
+
+  const destCache = new Map();
+  function destToId(destText) {
+    const k = norm(destText);
+    if (destCache.has(k)) return destCache.get(k);
+    const f = findStops(destText);
+    const id = f.length ? f[0].id : null;
+    destCache.set(k, id);
+    return id;
+  }
+
+  function serves(from, to, destId) {
+    if (!destId) return false;
+    return routes.some(r => {
+      const a = r.ids.indexOf(from), b = r.ids.indexOf(to), c = r.ids.indexOf(destId);
+      if (a < 0 || b < 0 || c < 0) return false;
+      return (a < b && b <= c) || (a > b && b >= c);
+    });
+  }
+  const commonRoute = (a, b) => routes.find(r => r.ids.includes(a) && r.ids.includes(b)) || null;
+
+  function path(a, b) {
+    const r = commonRoute(a, b);
+    if (!r) return null;
+    const i = r.ids.indexOf(a), j = r.ids.indexOf(b);
+    const seq = i <= j ? r.ids.slice(i, j + 1) : r.ids.slice(j, i + 1).reverse();
+    let metres = 0;
+    for (let x = 1; x < seq.length; x++) {
+      const p = byId.get(seq[x - 1]), q = byId.get(seq[x]);
+      if (p && q && isFinite(p.lat) && isFinite(q.lat)) metres += haversine(p, q);
+    }
+    return { seq, stops: seq.length - 1, metres };
+  }
+
+  function interchange(a, b) {
+    let best = null;
+    for (const s of stops) {
+      if (s.id === a || s.id === b) continue;
+      const p1 = path(a, s.id), p2 = path(s.id, b);
+      if (p1 && p2) {
+        const cost = p1.stops + p2.stops;
+        if (!best || cost < best.cost) best = { id: s.id, cost };
+      }
+    }
+    return best ? best.id : null;
+  }
+
+  function nearest(lat, lng, k = 3) {
+    return stops.filter(s => isFinite(s.lat) && isFinite(s.lng))
+      .map(s => ({ stop: s, metres: haversine({ lat, lng }, s) }))
+      .sort((x, y) => x.metres - y.metres).slice(0, k);
+  }
+
+  function roleOf(n, start) {
+    const before = n.slice(0, start).trim().split(' ');
+    const w1 = before[before.length - 1] || '';
+    const w2 = before.slice(-2).join(' ');
+    if (['to','towards','toward','into','till','til','until'].includes(w1) || ['heading for','going for','bound for','get to'].includes(w2)) return 'dest';
+    if (['from','at','leaving','near','outside','by'].includes(w1)) return 'origin';
+    return null;
+  }
+
+  function parse(text, ctx = {}) {
+    const raw = String(text || '').trim();
+    const base = ' ' + norm(raw) + ' ';
+    let n = base;
+    n = n.replace(/ (a|an) (minute|min) /g, ' 1 minute ').replace(/ half an hour | half hour /g, ' 30 minutes ');
+    for (const [w, v] of Object.entries(NUM_WORDS)) n = n.replace(new RegExp(' ' + w + ' ', 'g'), ' ' + v + ' ');
+    const has = re => re.test(n);
+    const wordCount = n.trim().split(' ').filter(Boolean).length;
+
+    const q = { raw, intent: null, origin: null, dest: null, dir: null, walk: null, window: null, threshold: null, line: null, fuzzy: [] };
+    const mentions = findStops(raw);
+    q.fuzzy = mentions.filter(m => m.how === 'fuzzy').map(m => ({ heard: m.heard, id: m.id }));
+
+    // line
+    const redMention = mentions.some(m => m.id === 'RED');
+    const greenMention = mentions.some(m => m.id === 'STS');
+    const saysRed = / red /.test(n) && !redMention, saysGreen = / green /.test(n) && !greenMention;
+    q.line = saysRed && saysGreen ? 'both' : saysRed ? 'red' : saysGreen ? 'green' : null;
+
+    // direction
+    if (has(/ (outbound|out of town|out of the city|away from (the )?(city|town)) /)) q.dir = 'outbound';
+    else if (has(/ (inbound|into town|in to town|into the city|to town|to the city|city centre|city center|towards town|towards the city|in town) /)) q.dir = 'inbound';
+
+    // walking time / arrival offset
+    let m;
+    if ((m = n.match(/ (\d{1,3}) (?:min|mins|minute|minutes) (?:walk|away|from|out|off)/)) ||
+        (m = n.match(/ (?:walk|walking|takes me|take me|need|get there in|be there in|there in|arrive in|at the stop in) (?:of |about |around |roughly )?(\d{1,3}) ?(?:min|mins|minute|minutes)?/)) ||
+        (m = n.match(/ (?:i ll|ill|i will|im|i am) (?:be )?(?:there |at the stop )?in (\d{1,3}) (?:min|mins|minute|minutes)/)) ||
+        (m = n.match(/ (?:be|get|arrive|reach)(?: [a-z ]{0,40})? in (\d{1,3}) (?:min|mins|minute|minutes)/))) q.walk = +m[1];
+
+    // count window
+    if ((m = n.match(/ (?:next|within|in the next|over the next) (\d{1,3}) (?:min|mins|minute|minutes) /))) q.window = +m[1];
+    else if (has(/ (next|within the|in the next) hour /)) q.window = 60;
+    if (q.window && q.walk === q.window && !has(/ (walk|walking|away) /)) q.walk = null;
+
+    // intent
+    const followUp = /^ (and|what about|how about|ok and|ok what about|also|then) /.test(n);
+    if (/^ (hi|hello|hey|hiya|howya|yo|dia duit|good (morning|afternoon|evening)) /.test(n) && wordCount <= 4 && !mentions.length) q.intent = 'greeting';
+    else if (has(/ (thanks|thank you|thank u|cheers|nice one|legend|go raibh) /) && wordCount <= 6 && !mentions.length) q.intent = 'thanks';
+    else if (has(/ (cancel|stop|clear|remove|delete|turn off|disable) .*(alert|alerts|remind|reminder|reminders|watch|notification|notifications|alarm)/)) q.intent = 'cancelWatch';
+    else if (has(/ (remind|notify|alert|ping|buzz|let me know|tell me when|warn|give me a shout|heads up) /)) q.intent = 'watch';
+    else if (has(/ (help|what can you do|how do i use|how does this work|commands|examples|what do you know) /) && !mentions.length) q.intent = 'help';
+    else if (has(/ (nearest|closest|near me|nearby|around me|close to me|where am i|close by) /)) q.intent = 'nearest';
+    else if (has(/ (set|change|switch|make|save) (my )?(home |default )?(stop|station)|^ (use|pick|select|choose) | (as|to be) my (home |default )?stop | my (home |default )?stop (is|to) |^ (make|set) .* my (home |default )?stop /) && mentions.length) q.intent = 'setStop';
+    else if (has(/ (last tram|last luas|first tram|first luas|timetable|schedule) /)) q.intent = 'lastTram';
+    else if (has(/ (which|what) line /) && mentions.length) q.intent = 'whichLine';
+    else if (has(/ (list|all|show|what are|which are|name) (the |all )?(the )?(stops|stations)| (stops|stations) on (the )?(red|green)| how many stops (are|on|is) (there|the)/) && !mentions.length) q.intent = 'listStops';
+    else if (has(/ how many trams | (frequency|how often|how frequent|how regular) /)) q.intent = 'count';
+    else if (has(/ (status|delay|delays|delayed|disruption|disruptions|problem|problems|issue|issues|strike|closed|closure|any news|messages?|operating|working ok|running ok|running normally|is (the )?(red|green)( line)? (ok|running|working)|everything ok|service update) /) && !has(/ next /)) q.intent = 'status';
+    else if (has(/ (how many stops|how far|distance|journey time|travel time|how long (does|will|would|is) (it|the journey|the trip|the ride)|how long to get|how long from|take to get|journey|plan|route) /) ||
+             (has(/ how long /) && mentions.length >= 2 && !has(/ (until|till|til|before|for the next|wait) /))) q.intent = 'journey';
+    else if (mentions.length || q.dir || q.walk != null || has(/ (next|when|tram|trams|luas|due|times?|leave|catch|make it|arriv|departures?|coming|soon|wait|how long) /)) q.intent = 'departures';
+    else if (followUp && ctx.intent) q.intent = ctx.intent;
+    else q.intent = 'unknown';
+
+    // roles
+    for (const mm of mentions) mm.role = roleOf(base, mm.start);
+    const o = mentions.find(x => x.role === 'origin'), d = mentions.find(x => x.role === 'dest');
+    q.origin = o ? o.id : null; q.dest = d ? d.id : null;
+    const rest = mentions.filter(x => !x.role && x.id !== q.origin && x.id !== q.dest);
+    if (!q.origin && !q.dest) {
+      if (rest.length >= 2) { q.origin = rest[0].id; q.dest = rest[1].id; }
+      else if (rest.length === 1) q.origin = rest[0].id;
+    } else if (!q.origin && rest.length) q.origin = rest[0].id;
+    else if (!q.dest && rest.length) q.dest = rest[0].id;
+
+    if (q.intent === 'journey' && q.origin && !q.dest) { q.dest = q.origin; q.origin = null; }
+    if (q.intent === 'setStop' || q.intent === 'whichLine') { q.origin = q.origin || q.dest; q.dest = null; }
+
+    // follow-ups inherit context ("and from Heuston?", "what about outbound?")
+    const contextual = ['departures','count','journey','watch'].includes(q.intent);
+    if (contextual && (followUp || (!mentions.length && (q.dir || q.walk != null || q.window)))) {
+      if (!q.origin) q.origin = ctx.origin || null;
+      if (!q.dest && !q.dir && ctx.dest && (followUp || q.walk != null)) q.dest = ctx.dest;
+      if (followUp && ctx.intent && q.intent === 'departures' && ['count','journey'].includes(ctx.intent) && !has(/ next /)) q.intent = ctx.intent;
+    }
+
+    // alert threshold
+    if (q.intent === 'watch') {
+      if ((m = n.match(/ (\d{1,2}) (?:min|mins|minute|minutes)/))) q.threshold = +m[1];
+      else if (has(/ (is due|its due|it s due|arrives|arriving|is here|due now) /)) q.threshold = 1;
+      else q.threshold = 3;
+      q.walk = null;
+    }
+    return q;
+  }
+
+  return { stops, byId, routes, norm, findStops, destToId, serves, commonRoute, path, interchange, nearest, parse };
+}
+/* ===== ENGINE END ===== */
+
+
+/* ================= DOM refs ================= */
+const $ = id => document.getElementById(id);
+const els = {
+  select: $('stopSelect'), refresh: $('refreshBtn'), content: $('content'), nearBtn: $('nearBtn'), favBtn: $('favBtn'), favs: $('favs'),
+  stopName: $('stopName'), lineTag: $('lineTag'), updated: $('updated'),
+  error: $('error'), errorText: $('errorText'), message: $('message'), messageText: $('messageText'),
+  dirs: $('dirs'), live: $('live'), liveText: $('liveText'), progress: $('progress'), quickAsks: $('quickAsks'),
+  chatLog: $('chatLog'), composer: $('composer'), input: $('chatInput'), sendBtn: $('sendBtn'), micBtn: $('micBtn'),
+  speakBtn: $('speakBtn'), clearBtn: $('clearBtn'), watchBar: $('watchBar'), askBadge: $('askBadge'),
+  toast: $('toast'), relayNote: $('relayNote')
+};
+const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+/* ================= Storage (safe: may be blocked in private mode) ================= */
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* blocked */ } }
+};
+
+/* ================= State ================= */
+let engine = null;
+let currentStop = store.get(K_STOP) || DEFAULT_STOP;
+let favs = (() => { try { const v = JSON.parse(store.get(K_FAVS) || '[]'); return Array.isArray(v) ? v.filter(x => typeof x === 'string') : []; } catch (e) { return []; } })();
+let speakOn = store.get(K_SPEAK) === '1';
+let lastSuccess = null, requestId = 0, timer = null, stopsPromise = null;
+let ctx = { intent: null, origin: null, dest: null };
+let watches = [];
+let watchSeq = 0;
+const forecastCache = new Map();
+
+/* ================= Helpers ================= */
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+const timeFmt = d => d.toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/Dublin' });
+const clockFmt = d => d.toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Dublin' });
+const stopName = id => (engine && engine.byId.get(id) ? engine.byId.get(id).name : id);
+const lineOf = id => (engine && engine.byId.get(id) ? engine.byId.get(id).line : null);
+const lineName = l => l === 'red' ? 'Red Line' : l === 'green' ? 'Green Line' : 'Luas';
+const tramAt = d => d != null && d <= 0 ? 'tram that\'s due now' : dueShort(d) + ' tram';
+const dueShort = d => d == null ? '–' : d <= 0 ? 'Due' : d + ' min';
+const dueLong = d => d == null ? 'time unknown' : d <= 0 ? 'due now' : d === 1 ? 'in 1 minute' : 'in ' + d + ' minutes';
+const metresFmt = m => m < 950 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1) + ' km';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isOkMessage = msg => /normal|no (reported )?(disruption|delays|issues)|operating as normal|running as normal/i.test(msg || '');
+
+function toast(msg, ms = 2600) {
+  els.toast.textContent = msg;
+  els.toast.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => els.toast.classList.remove('show'), ms);
+}
+
+/* ================= Network ================= */
+async function getJSON(url) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out after ' + (TIMEOUT_MS / 1000) + ' seconds.');
+    if (location.protocol === 'file:') throw new Error('Your browser blocked the request because this page was opened as a local file. Open it from your GitHub Pages link (https://…) instead.');
+    throw new Error('Could not reach the data server. You may be offline, or your network or an ad blocker is blocking luas-class.kluxy.app.');
+  } finally {
+    clearTimeout(t);
+  }
+  if (!res.ok) throw new Error(('The server replied with an error: ' + res.status + ' ' + res.statusText).trim());
+  try { return await res.json(); }
+  catch (e) { throw new Error('The server sent data that isn\'t valid JSON.'); }
+}
+
+function loadStops() {
+  if (!stopsPromise) {
+    stopsPromise = getJSON(API + '/stops').then(data => {
+      if (!data || !Array.isArray(data.stops)) throw new Error('The stop list came back in an unexpected format.');
+      const list = data.stops.filter(s => s && s.id && s.name);
+      if (!list.length) throw new Error('The stop list is empty.');
+      engine = createEngine(list);
+      showRelay(data.relay_ends);
+      return engine;
+    }).catch(e => { stopsPromise = null; throw e; });
+  }
+  return stopsPromise;
+}
+
+function toDue(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'string' && /^due$/i.test(v.trim())) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
+}
+function dirsOf(data) {
+  const dirs = Array.isArray(data && data.directions) ? data.directions : [];
+  return dirs.map(d => ({
+    name: String((d && d.name) || 'Direction'),
+    trams: (d && Array.isArray(d.trams) ? d.trams : [])
+      .map(t => ({ due: toDue(t && t.due), destination: String((t && t.destination) || 'Unknown') }))
+      .sort((a, b) => (a.due == null ? 999 : a.due) - (b.due == null ? 999 : b.due))
+  }));
+}
+
+async function getForecast(stop, maxAgeMs = 0) {
+  const c = forecastCache.get(stop);
+  if (c && Date.now() - c.at.getTime() <= maxAgeMs) return c;
+  const data = await getJSON(API + '/forecast?stop=' + encodeURIComponent(stop));
+  if (!data || typeof data !== 'object') throw new Error('The forecast came back in an unexpected format.');
+  const entry = { data, dirs: dirsOf(data), at: new Date() };
+  forecastCache.set(stop, entry);
+  if (data.relay_ends) showRelay(data.relay_ends);
+  return entry;
+}
+
+function showRelay(iso) {
+  if (!iso) return;
+  const d = new Date(iso);
+  if (isNaN(d)) return;
+  els.relayNote.textContent = 'Live data relay available until ' + d.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Dublin' }) + '.';
+  els.relayNote.hidden = false;
+}
+
+/* ================= Dashboard ================= */
+function setStatus(state, text) {
+  els.live.className = 'pill pill-live ' + state;
+  els.liveText.textContent = text;
+  els.refresh.classList.toggle('spin', state === 'loading');
+}
+function showError(msg) {
+  els.errorText.textContent = msg;
+  els.error.hidden = false;
+  els.content.classList.add('stale');
+  setStatus('error', 'Offline');
+  els.updated.textContent = lastSuccess
+    ? 'Last updated ' + timeFmt(lastSuccess) + ' · showing older data, retrying every 20 s'
+    : 'Last updated: never · retrying every 20 s';
+}
+function clearError() { els.error.hidden = true; els.content.classList.remove('stale'); }
+function restartProgress() {
+  const p = els.progress;
+  p.classList.remove('run'); void p.offsetWidth; p.classList.add('run');
+}
+function showSkeleton() {
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 2; i++) {
+    const c = el('div', 'card skeleton');
+    c.append(el('div', 'skel-line short'), el('div', 'skel-line big'), el('div', 'skel-line'), el('div', 'skel-line'));
+    frag.appendChild(c);
+  }
+  els.dirs.replaceChildren(frag);
+}
+function applyLine(stopId) {
+  const line = lineOf(stopId);
+  if (line === 'red' || line === 'green') document.body.dataset.line = line;
+  els.lineTag.hidden = !(line === 'red' || line === 'green');
+  if (!els.lineTag.hidden) els.lineTag.textContent = lineName(line);
+}
+
+function buildSelect() {
+  const groups = [
+    { label: 'Red Line', list: engine.stops.filter(s => s.line === 'red') },
+    { label: 'Green Line', list: engine.stops.filter(s => s.line === 'green') },
+    { label: 'Other', list: engine.stops.filter(s => s.line !== 'red' && s.line !== 'green') }
+  ];
+  const frag = document.createDocumentFragment();
+  for (const g of groups) {
+    if (!g.list.length) continue;
+    const og = document.createElement('optgroup');
+    og.label = g.label;
+    for (const s of g.list) og.appendChild(new Option(s.name, s.id, false, s.id === currentStop));
+    frag.appendChild(og);
+  }
+  els.select.replaceChildren(frag);
+  els.select.value = currentStop;
+}
+
+function renderFavs() {
+  favs = favs.filter(id => !engine || engine.byId.has(id));
+  els.favBtn.classList.toggle('on', favs.includes(currentStop));
+  els.favBtn.setAttribute('aria-pressed', favs.includes(currentStop) ? 'true' : 'false');
+  els.favBtn.setAttribute('aria-label', favs.includes(currentStop) ? 'Remove from favourites' : 'Add to favourites');
+  els.favs.hidden = !favs.length;
+  const frag = document.createDocumentFragment();
+  favs.forEach(id => {
+    const b = el('button', 'fav' + (id === currentStop ? ' current' : ''));
+    b.type = 'button';
+    const dot = el('span', 'ld');
+    dot.style.background = lineOf(id) === 'green' ? 'var(--green)' : 'var(--red)';
+    b.append(dot, document.createTextNode('★ ' + stopName(id)));
+    b.addEventListener('click', () => selectStop(id));
+    frag.appendChild(b);
+  });
+  els.favs.replaceChildren(frag);
+}
+
+function renderQuickAsks() {
+  const name = stopName(currentStop);
+  const line = lineOf(currentStop);
+  const list = [
+    'Next tram into town from ' + name + '?',
+    'Any delays on the ' + lineName(line) + '?',
+    'How many trams in the next 30 minutes at ' + name + '?',
+    'Remind me when the next tram at ' + name + ' is 3 minutes away',
+    'Where\'s my nearest stop?'
+  ];
+  const frag = document.createDocumentFragment();
+  list.forEach(t => {
+    const c = el('button', 'chip', t); c.type = 'button';
+    c.addEventListener('click', () => { setView('ask'); ask(t); });
+    frag.appendChild(c);
+  });
+  els.quickAsks.replaceChildren(frag);
+}
+
+function selectStop(id, opts = {}) {
+  if (!id) return;
+  if (engine && !engine.byId.has(id)) return;
+  currentStop = id;
+  store.set(K_STOP, id);
+  if (engine) els.select.value = id;
+  applyLine(id);
+  els.stopName.textContent = stopName(id);
+  els.message.hidden = true;
+  renderFavs();
+  renderQuickAsks();
+  if (!opts.silent) { showSkeleton(); refresh(); restartTimer(); }
+}
+
+async function refresh() {
+  const id = ++requestId;
+  const stop = currentStop;
+  setStatus('loading', 'Updating');
+  restartProgress();
+  try {
+    if (!engine) {
+      try {
+        await loadStops();
+        if (!engine.byId.has(currentStop)) { currentStop = engine.byId.has(DEFAULT_STOP) ? DEFAULT_STOP : engine.stops[0].id; store.set(K_STOP, currentStop); }
+        buildSelect(); renderFavs(); renderQuickAsks(); applyLine(currentStop);
+      } catch (e) {
+        els.select.replaceChildren(new Option(currentStop, currentStop, true, true));
+        if (els.stopName.textContent === '—') els.stopName.textContent = currentStop;
+        throw new Error('Couldn\'t load the stop list: ' + e.message);
+      }
+    }
+    const f = await getForecast(currentStop === stop ? stop : currentStop);
+    if (id !== requestId) return;
+    renderForecast(f, stop);
+    lastSuccess = f.at;
+    clearError();
+    els.updated.textContent = 'Last updated ' + timeFmt(lastSuccess);
+    setStatus('ok', 'Live');
+  } catch (e) {
+    if (id !== requestId) return;
+    els.dirs.querySelectorAll('.skeleton').length && els.dirs.replaceChildren();
+    showError(/^Couldn't/.test(e.message) ? e.message : 'Couldn\'t load live trams: ' + e.message);
+  }
+  checkWatches().catch(() => {});
+}
+
+function renderForecast(f, stop) {
+  const d = f.data;
+  els.stopName.textContent = d.stopName || stopName(stop);
+  document.title = els.stopName.textContent + ' · myLUAS';
+  applyLine(stop);
+
+  const msg = typeof d.message === 'string' ? d.message.trim() : '';
+  els.messageText.textContent = msg;
+  els.message.hidden = !msg;
+  els.message.classList.toggle('ok', isOkMessage(msg));
+
+  const frag = document.createDocumentFragment();
+  if (!f.dirs.length) {
+    const card = el('div', 'card');
+    card.appendChild(el('div', 'empty', 'No tram information for this stop right now.'));
+    frag.appendChild(card);
+  }
+  f.dirs.forEach((dir, i) => {
+    const card = el('section', 'card');
+    card.style.animationDelay = (i * 60) + 'ms';
+    const head = el('div', 'card-head');
+    const arrow = el('span', 'arrow');
+    arrow.innerHTML = ARROW;
+    if (/inbound/i.test(dir.name)) arrow.style.transform = 'scaleX(-1)';
+    head.append(arrow, el('span', null, dir.name));
+    card.appendChild(head);
+
+    const trams = dir.trams.slice(0, 3);
+    if (!trams.length) {
+      card.appendChild(el('div', 'empty', 'No trams scheduled.'));
+    } else {
+      const next = el('div', 'next');
+      const info = el('div');
+      info.append(el('div', 'label', 'Next tram'), el('div', 'dest', trams[0].destination));
+      next.append(info, etaNode(trams[0].due));
+      card.appendChild(next);
+      if (trams.length > 1) {
+        const ul = el('ul', 'later');
+        trams.slice(1).forEach(t => {
+          const li = el('li');
+          li.append(el('span', 'dest', t.destination), etaNode(t.due));
+          ul.appendChild(li);
+        });
+        card.appendChild(ul);
+      }
+      const extra = dir.trams.length - trams.length;
+      if (extra > 0) {
+        const last = dir.trams[dir.trams.length - 1];
+        card.appendChild(el('div', 'more', '+' + extra + ' more in the forecast' + (last.due != null ? ' (up to ' + last.due + ' min)' : '')));
+      }
+    }
+    frag.appendChild(card);
+  });
+  els.dirs.replaceChildren(frag);
+}
+
+function etaNode(due) {
+  const box = el('span', 'eta');
+  if (due == null) box.appendChild(el('b', null, '–'));
+  else if (due <= 0) { box.classList.add('now'); box.appendChild(el('b', null, 'Due')); box.setAttribute('aria-label', 'Due now'); }
+  else { box.append(el('b', null, String(due)), el('small', null, 'min')); box.setAttribute('aria-label', due + ' minute' + (due === 1 ? '' : 's')); }
+  return box;
+}
+
+function restartTimer() { clearInterval(timer); timer = setInterval(refresh, REFRESH_MS); }
+
+/* ================= Geolocation ================= */
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) return reject(new Error('This browser can\'t share your location.'));
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+      e => reject(new Error(e.code === 1 ? 'Location permission was denied. Allow location for this site and try again.'
+        : e.code === 3 ? 'Getting your location timed out. Try again outdoors or with Wi-Fi on.'
+        : 'Your location isn\'t available right now.')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  });
+}
+
+/* ================= Chat UI ================= */
+function rich(text) {
+  const frag = document.createDocumentFragment();
+  String(text).split(/(\*\*[^*]+\*\*)/).forEach(part => {
+    if (!part) return;
+    if (part.length > 4 && part.startsWith('**') && part.endsWith('**')) frag.appendChild(el('strong', null, part.slice(2, -2)));
+    else frag.appendChild(document.createTextNode(part));
+  });
+  return frag;
+}
+function scrollChat() { requestAnimationFrame(() => { els.chatLog.scrollTop = els.chatLog.scrollHeight; }); }
+
+function addUser(text) {
+  const m = el('div', 'msg user', text);
+  els.chatLog.appendChild(m);
+  scrollChat();
+}
+
+function addTyping(label) {
+  const m = el('div', 'msg bot');
+  const t = el('div', 'typing');
+  t.append(el('i'), el('i'), el('i'), el('span', 'typing-label', label || 'Checking live data…'));
+  m.style.padding = '0';
+  m.appendChild(t);
+  els.chatLog.appendChild(m);
+  scrollChat();
+  return () => m.remove();
+}
+
+function snapshotOf(ans) {
+  const snap = {};
+  (ans.blocks || []).forEach(b => {
+    const r = b.rows.find(x => !x.dim) || b.rows[0];
+    snap[b.title] = r ? dueShort(r.due) + ' (' + r.destination + ')' : 'none';
+  });
+  return snap;
+}
+
+function addBot(ans, cls) {
+  const m = el('div', 'msg bot' + (ans.error ? ' err' : '') + (cls ? ' ' + cls : ''));
+  (ans.paras || []).forEach(p => { const pe = el('p'); pe.appendChild(rich(p)); m.appendChild(pe); });
+  (ans.blocks || []).forEach(b => {
+    const box = el('div', 'mini');
+    box.appendChild(el('div', 'mini-title', b.title));
+    if (!b.rows.length) box.appendChild(el('div', 'mini-empty', b.empty || 'No trams in the current forecast.'));
+    b.rows.forEach(r => {
+      const row = el('div', 'mini-row' + (r.dim ? ' dim' : '') + (r.hl ? ' hl' : ''));
+      const left = el('span', 'mini-dest', r.destination);
+      if (r.note) left.appendChild(el('small', null, r.note));
+      const eta = el('span', 'mini-eta' + (r.due === 0 ? ' now' : ''));
+      if (r.due == null) eta.textContent = '–';
+      else if (r.due <= 0) eta.textContent = 'Due';
+      else { eta.append(document.createTextNode(String(r.due)), el('small', null, 'min')); }
+      row.append(left, eta);
+      box.appendChild(row);
+    });
+    m.appendChild(box);
+  });
+  (ans.after || []).forEach(p => { const pe = el('p'); pe.appendChild(rich(p)); m.appendChild(pe); });
+
+  if (ans.verifiedAt) {
+    const v = el('div', 'verify');
+    const ok = el('span', 'ok');
+    ok.innerHTML = CHECK;
+    ok.appendChild(document.createTextNode('Checked live at ' + timeFmt(ans.verifiedAt)));
+    v.appendChild(ok);
+    if (ans.recheck) {
+      const b = el('button', null, 'Re-check now');
+      b.type = 'button';
+      b.addEventListener('click', () => runParsed(ans.recheck, { prevSnap: snapshotOf(ans), prevAt: ans.verifiedAt, label: 'Re-checking live data…' }));
+      v.appendChild(b);
+    }
+    m.appendChild(v);
+  } else if (ans.error && ans.recheck) {
+    const v = el('div', 'verify');
+    const b = el('button', null, 'Try again');
+    b.type = 'button';
+    b.addEventListener('click', () => runParsed(ans.recheck, { label: 'Trying again…' }));
+    v.appendChild(b);
+    m.appendChild(v);
+  }
+
+  if (ans.chips && ans.chips.length) {
+    const c = el('div', 'chips');
+    ans.chips.slice(0, 4).forEach(ch => {
+      const b = el('button', 'chip', ch.label);
+      b.type = 'button';
+      b.addEventListener('click', () => { if (ch.run) ch.run(); else ask(ch.q || ch.label); });
+      c.appendChild(b);
+    });
+    m.appendChild(c);
+  }
+  els.chatLog.appendChild(m);
+  scrollChat();
+  if (speakOn) speak([...(ans.paras || []), ...(ans.after || [])].join(' '));
+  return m;
+}
+
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text).replace(/\*\*/g, '').replace(/[·•]/g, ',').slice(0, 600));
+    u.lang = 'en-IE'; u.rate = 1.03;
+    speechSynthesis.speak(u);
+  } catch (e) { /* ignore */ }
+}
+
+async function ask(text) {
+  text = String(text || '').trim();
+  if (!text) return;
+  addUser(text);
+  let q;
+  try {
+    if (!engine) await loadStops();
+    q = engine.parse(text, ctx);
+  } catch (e) {
+    addBot({ error: true, paras: ['I couldn\'t load the Luas stop list, so I can\'t answer yet: ' + e.message], chips: [{ label: 'Try again', q: text }] });
+    return;
+  }
+  await runParsed(q, {});
+}
+
+async function runParsed(q, opts) {
+  const stopTyping = addTyping(opts.label);
+  const t0 = Date.now();
+  let ans;
+  try {
+    const h = HANDLERS[q.intent] || HANDLERS.unknown;
+    ans = await h(q);
+  } catch (e) {
+    ans = { error: true, paras: ['⚠️ I couldn\'t check the live data just now: ' + e.message], recheck: q };
+  }
+  const wait = 450 - (Date.now() - t0);
+  if (wait > 0) await sleep(wait);
+  stopTyping();
+
+  if (opts.prevSnap && ans && !ans.error) {
+    const now = snapshotOf(ans);
+    const changes = Object.keys(now).filter(k => opts.prevSnap[k] !== undefined && opts.prevSnap[k] !== now[k])
+      .map(k => k + ': ' + opts.prevSnap[k] + ' → ' + now[k]);
+    ans.paras = [(changes.length
+      ? '🔄 **Re-checked.** Things changed since ' + timeFmt(opts.prevAt) + ': ' + changes.join(' · ') + '.'
+      : '🔄 **Re-checked.** No change since ' + timeFmt(opts.prevAt) + '.'), ...(ans.paras || [])];
+  }
+  if (ans && ans.ctx) ctx = Object.assign({}, ctx, ans.ctx);
+  addBot(ans);
+}
+
+/* ================= Reasoning helpers ================= */
+function fuzzyNote(q) {
+  return q.fuzzy && q.fuzzy.length
+    ? q.fuzzy.map(f => 'I read "' + f.heard + '" as **' + stopName(f.id) + '**.').join(' ')
+    : null;
+}
+function rowsWithDir(dirs) {
+  const rows = [];
+  dirs.forEach(d => d.trams.forEach(t => rows.push(Object.assign({ dir: d.name }, t))));
+  return rows.sort((a, b) => (a.due == null ? 999 : a.due) - (b.due == null ? 999 : b.due));
+}
+function catchable(trams, walk) { return trams.find(t => t.due != null && t.due >= walk) || null; }
+function walkAdvice(trams, walk, label) {
+  const missed = trams.filter(t => t.due != null && t.due < walk);
+  const c = catchable(trams, walk);
+  if (!c) return 'You\'re ' + walk + ' min away, and there\'s nothing ' + (label || '') + ' in the forecast you can reach yet. Ask me again in a few minutes.';
+  const spare = c.due - walk;
+  let s = missed.length
+    ? 'You\'re ' + walk + ' min away, so you\'ll miss the ' + missed.map(t => tramAt(t.due)).join(' and the ') + '. '
+    : 'You\'re ' + walk + ' min away. ';
+  s += '**Aim for the ' + tramAt(c.due) + ' (to ' + c.destination + ')**';
+  s += spare <= 1 ? ', but it\'s tight: leave right now.' : ', so you\'ve about ' + spare + ' min to spare.';
+  return s;
+}
+function stopChips(stop) {
+  return [
+    { label: 'Re-check ' + stopName(stop), q: 'next trams at ' + stopName(stop) },
+    { label: 'Any delays?', q: 'any delays on the ' + lineName(lineOf(stop)) + '?' }
+  ];
+}
+
+/* ================= Intent handlers ================= */
+const HANDLERS = {
+  async greeting() {
+    return {
+      paras: ['Hi! 👋 I\'m **myLUAS**. Every time you ask, I fetch the live Luas forecast, so my answers are always fresh.',
+        'Your stop right now is **' + stopName(currentStop) + '**. What would you like to know?'],
+      chips: [{ label: 'Next trams here' }, { label: 'Any delays?' }, { label: 'Nearest stop to me' }, { label: 'What can you do?' }]
+    };
+  },
+
+  async thanks() {
+    return { paras: ['Any time! 🚋 Safe travels.'], chips: [{ label: 'Next trams here' }] };
+  },
+
+  async help() {
+    return {
+      paras: ['Here\'s what I can do, always with **live data** checked at the moment you ask:',
+        '🚋 **Next trams:** "next tram at Jervis", "trams into town", "Heuston outbound"',
+        '🧭 **A to B:** "next tram from Abbey Street to Tallaght" (I skip trams that terminate early and spot when you need to change)',
+        '🚶 **Can I make it?** "I\'m 6 minutes from Ranelagh, which tram can I catch?"',
+        '⏰ **Alerts:** "remind me when the next tram to Saggart is 4 minutes away"',
+        '📊 **Frequency:** "how many trams in the next 30 minutes at Dundrum?"',
+        '📍 **Nearby:** "nearest stop to me"   ⚠️ **Status:** "any delays on the Green Line?"',
+        '🗺️ **Journeys:** "how many stops from Connolly to Red Cow?"',
+        'Tip: typos are fine, and you can follow up with "and outbound?" or "what about from Heuston?".'],
+      chips: [{ label: 'Next tram into town' }, { label: 'Any delays on the Green Line?' }, { label: 'Nearest stop to me' }]
+    };
+  },
+
+  async unknown(q) {
+    return {
+      paras: ['I\'m not sure what you mean by "' + q.raw + '". 🤔 I\'m best with questions about live trams, stops, journeys, delays and alerts.',
+        'Try naming a stop, like "next tram from Jervis to Tallaght".'],
+      chips: [{ label: 'Next trams at ' + stopName(currentStop) }, { label: 'What can you do?' }]
+    };
+  },
+
+  async departures(q) {
+    const origin = q.origin || currentStop;
+    if (q.dest) return destAnswer(q, origin);
+    const f = await getForecast(origin);
+    let dirs = f.dirs;
+    const paras = [];
+    const fn = fuzzyNote(q); if (fn) paras.push(fn);
+    let dirNote = null;
+    if (q.dir) {
+      const pick = dirs.filter(d => d.name.toLowerCase().includes(q.dir));
+      if (pick.length) dirs = pick;
+      else dirNote = 'I couldn\'t find a direction called "' + q.dir + '" at this stop, so here are all of them.';
+    }
+    const name = f.data.stopName || stopName(origin);
+    if (!dirs.length) paras.push('There\'s no tram information for **' + name + '** at the moment.');
+    else {
+      paras.push('**' + name + '** right now:');
+      if (dirNote) paras.push(dirNote);
+    }
+    const after = [];
+    if (q.walk != null) dirs.forEach(d => after.push('**' + d.name + ':** ' + walkAdvice(d.trams, q.walk)));
+    else {
+      const parts = dirs.filter(d => d.trams.length).map(d => d.name + ' ' + dueLong(d.trams[0].due) + ' (to ' + d.trams[0].destination + ')');
+      if (parts.length) after.push('Next up: ' + parts.join('; ') + '.');
+    }
+    const msg = (f.data.message || '').trim();
+    if (msg && !isOkMessage(msg)) after.push('⚠️ ' + msg);
+    return {
+      paras, after, verifiedAt: f.at, recheck: q,
+      blocks: dirs.map(d => ({
+        title: d.name,
+        rows: d.trams.slice(0, 3).map(t => Object.assign({}, t, { hl: q.walk != null && catchable(d.trams, q.walk) === t }))
+      })),
+      ctx: { intent: 'departures', origin, dest: null },
+      chips: dirs.length > 1 && !q.dir
+        ? [{ label: 'Only ' + dirs[0].name.toLowerCase(), q: 'and ' + dirs[0].name.toLowerCase() + '?' }, { label: 'How many in the next 30 min?', q: 'how many trams in the next 30 minutes at ' + name }]
+        : stopChips(origin)
+    };
+  },
+
+  async journey(q) {
+    if (!q.dest) {
+      return { paras: ['Where are you heading? Tell me the destination stop, e.g. "how many stops from ' + stopName(q.origin || currentStop) + ' to Tallaght".'] };
+    }
+    return destAnswer(q, q.origin || currentStop, { journey: true });
+  },
+
+  async count(q) {
+    const origin = q.origin || currentStop;
+    const win = q.window || 30;
+    const f = await getForecast(origin);
+    const name = f.data.stopName || stopName(origin);
+    const horizon = Math.max(0, ...f.dirs.flatMap(d => d.trams.map(t => t.due || 0)));
+    const paras = [];
+    const fn = fuzzyNote(q); if (fn) paras.push(fn);
+    paras.push('Trams due at **' + name + '** in the next **' + win + ' minutes**' + (q.dest ? ' that go to **' + stopName(q.dest) + '**' : '') + ':');
+    const blocks = [];
+    let dirs = f.dirs;
+    if (q.dir) { const p = dirs.filter(d => d.name.toLowerCase().includes(q.dir)); if (p.length) dirs = p; }
+    dirs.forEach(d => {
+      let trams = d.trams.filter(t => t.due != null && t.due <= win);
+      if (q.dest) trams = trams.filter(t => engine.serves(origin, q.dest, engine.destToId(t.destination)));
+      const gaps = trams.slice(1).map((t, i) => t.due - trams[i].due);
+      const avg = gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null;
+      paras.push('**' + d.name + ':** ' + trams.length + ' tram' + (trams.length === 1 ? '' : 's') + (avg ? ', roughly every ' + avg + ' min' : '') + '.');
+      blocks.push({ title: d.name + ' · next ' + win + ' min', rows: trams.slice(0, 6) });
+    });
+    const after = [];
+    if (win > horizon && horizon > 0) after.push('Note: the live forecast only reaches about ' + horizon + ' min ahead right now, so there may be more trams after that.');
+    return { paras, blocks, after, verifiedAt: f.at, recheck: q, ctx: { intent: 'count', origin, dest: q.dest }, chips: stopChips(origin) };
+  },
+
+  async status(q) {
+    const lines = q.line === 'red' ? ['red'] : q.line === 'green' ? ['green'] : q.origin ? [lineOf(q.origin)] : ['red', 'green'];
+    const probe = l => q.origin && lineOf(q.origin) === l ? q.origin
+      : lineOf(currentStop) === l ? currentStop : (l === 'red' ? 'ABB' : 'STS');
+    const results = await Promise.all(lines.map(async l => {
+      try { const f = await getForecast(probe(l)); return { l, f }; }
+      catch (e) { return { l, err: e.message }; }
+    }));
+    const paras = [];
+    let at = null;
+    results.forEach(r => {
+      if (r.err) { paras.push('**' + lineName(r.l) + ':** couldn\'t check (' + r.err + ')'); return; }
+      at = r.f.at;
+      const msg = (r.f.data.message || '').trim();
+      paras.push((isOkMessage(msg) ? '✅ ' : '⚠️ ') + '**' + lineName(r.l) + ':** ' + (msg || 'No service message published.'));
+    });
+    if (!at) return { error: true, paras, recheck: q };
+    paras.push('These messages come straight from TII\'s live feed.');
+    return { paras, verifiedAt: at, recheck: q, ctx: { intent: 'status' }, chips: [{ label: 'Next trams at ' + stopName(currentStop) }] };
+  },
+
+  async nearest() {
+    if (!engine) await loadStops();
+    const pos = await getPosition();
+    const near = engine.nearest(pos.lat, pos.lng, 3);
+    const best = near[0];
+    if (!best) return { error: true, paras: ['I couldn\'t work out the nearest stop.'] };
+    const walk = Math.max(1, Math.ceil(best.metres / 80));
+    const paras = [];
+    if (best.metres > 5000) {
+      paras.push('You\'re about **' + metresFmt(best.metres) + '** from the nearest Luas stop, **' + best.stop.name + '** (' + lineName(best.stop.line) + '). That\'s a bit far to walk!');
+      return { paras, chips: [{ label: 'Trams at ' + best.stop.name, q: 'next trams at ' + best.stop.name }] };
+    }
+    const f = await getForecast(best.stop.id);
+    paras.push('📍 Your nearest stop is **' + best.stop.name + '** (' + lineName(best.stop.line) + '), about **' + metresFmt(best.metres) + '** away, roughly a ' + walk + '-min walk.');
+    const after = f.dirs.map(d => '**' + d.name + ':** ' + walkAdvice(d.trams, walk));
+    if (near.length > 1) after.push('Also nearby: ' + near.slice(1).map(n => n.stop.name + ' (' + metresFmt(n.metres) + ')').join(', ') + '.');
+    return {
+      paras, after, verifiedAt: f.at,
+      recheck: { intent: 'departures', origin: best.stop.id, walk, raw: '' },
+      blocks: f.dirs.map(d => ({ title: d.name, rows: d.trams.slice(0, 3).map(t => Object.assign({}, t, { hl: catchable(d.trams, walk) === t })) })),
+      ctx: { intent: 'departures', origin: best.stop.id, dest: null },
+      chips: [
+        { label: 'Make ' + best.stop.name + ' my stop', run: () => { selectStop(best.stop.id); addBot({ paras: ['Done! **' + best.stop.name + '** is now your stop. ✅'] }); } },
+        ...near.slice(1).map(n => ({ label: 'Trams at ' + n.stop.name, q: 'next trams at ' + n.stop.name }))
+      ]
+    };
+  },
+
+  async setStop(q) {
+    const id = q.origin;
+    if (!id) return { paras: ['Which stop should I set? For example: "set my stop to Heuston".'] };
+    selectStop(id);
+    return {
+      paras: ['Done! **' + stopName(id) + '** (' + lineName(lineOf(id)) + ') is now your stop. ✅ The live board will follow it.'],
+      ctx: { origin: id }, chips: [{ label: 'Next trams there', q: 'next trams at ' + stopName(id) }]
+    };
+  },
+
+  async whichLine(q) {
+    const id = q.origin;
+    if (!id) return { paras: ['Which stop do you mean?'] };
+    const s = engine.byId.get(id);
+    const r = engine.routes.find(x => x.ids.includes(id));
+    const paras = ['**' + s.name + '** is on the **' + lineName(s.line) + '**.'];
+    if (r) {
+      const i = r.ids.indexOf(id);
+      const nb = [r.ids[i - 1], r.ids[i + 1]].filter(Boolean).map(stopName);
+      if (nb.length) paras.push('Neighbouring stops: ' + nb.join(' and ') + '.');
+    }
+    return { paras, ctx: { origin: id }, chips: [{ label: 'Next trams at ' + s.name, q: 'next trams at ' + s.name }] };
+  },
+
+  async listStops(q) {
+    const lines = q.line === 'red' ? ['red'] : q.line === 'green' ? ['green'] : ['red', 'green'];
+    const paras = lines.map(l => {
+      const list = engine.stops.filter(s => s.line === l);
+      return '**' + lineName(l) + '** (' + list.length + ' stops): ' + list.map(s => s.name).join(' · ');
+    });
+    if (lines.includes('red')) paras.push('The Red Line splits in two places: at Busáras (towards Connolly or The Point) and after Belgard (towards Tallaght or Saggart).');
+    return { paras };
+  },
+
+  async lastTram(q) {
+    const origin = q.origin || currentStop;
+    const f = await getForecast(origin);
+    const far = rowsWithDir(f.dirs).filter(t => t.due != null).pop();
+    return {
+      paras: ['I only see the **live forecast** (roughly the next hour), not the full timetable, so I can\'t tell you first or last trams reliably.',
+        far ? 'The furthest-ahead tram I can see at **' + stopName(origin) + '** is ' + dueLong(far.due) + ' (' + far.dir + ' to ' + far.destination + ').' : 'There are no trams in the forecast right now.',
+        'For first and last tram times, check the timetables on luas.ie.'],
+      verifiedAt: f.at, recheck: q
+    };
+  },
+
+  async watch(q) {
+    const origin = q.origin || currentStop;
+    const f = await getForecast(origin);
+    const w = { id: ++watchSeq, origin, dest: q.dest, dir: q.dir, threshold: q.threshold, created: Date.now() };
+    const cand = watchCandidates(w, f.dirs);
+    const label = watchLabel(w);
+    if (q.dest && (lineOf(q.dest) !== lineOf(origin) || !engine.commonRoute(origin, q.dest))) {
+      return { paras: ['There\'s no direct tram from **' + stopName(origin) + '** to **' + stopName(q.dest) + '**, so I can\'t set that alert. Ask me "how do I get from ' + stopName(origin) + ' to ' + stopName(q.dest) + '" first.'] };
+    }
+    if (cand[0] && cand[0].due != null && cand[0].due <= w.threshold) {
+      return {
+        paras: ['No need to wait, the ' + label + ' is **' + dueLong(cand[0].due) + '** already! 🏃'],
+        blocks: [{ title: 'Right now', rows: cand.slice(0, 3) }], verifiedAt: f.at, recheck: q
+      };
+    }
+    watches.push(w);
+    renderWatches();
+    requestNotify();
+    return {
+      paras: ['⏰ Got it. I\'ll check live every 20 seconds and alert you when the **' + label + '** is ' + (w.threshold <= 1 ? 'due' : w.threshold + ' minutes or less away') + '.',
+        cand[0] ? 'Right now the next one is ' + dueLong(cand[0].due) + '.' : 'There isn\'t a matching tram in the forecast yet. I\'ll keep looking for up to 90 minutes.',
+        'Keep this page open. If your browser allows notifications, you\'ll get one even in another tab.'],
+      verifiedAt: f.at, ctx: { intent: 'watch', origin, dest: q.dest },
+      chips: [{ label: 'Cancel alert', run: () => { cancelWatch(w.id); } }]
+    };
+  },
+
+  async cancelWatch() {
+    const n = watches.length;
+    watches = [];
+    renderWatches();
+    return { paras: [n ? '🔕 Cancelled ' + n + ' alert' + (n > 1 ? 's' : '') + '.' : 'You don\'t have any active alerts.'] };
+  }
+};
+
+async function destAnswer(q, origin, opts = {}) {
+  const dest = q.dest;
+  const oName = stopName(origin), dName = stopName(dest);
+  const paras = [];
+  const fn = fuzzyNote(q); if (fn) paras.push(fn);
+
+  if (dest === origin) return { paras: ['You\'re already at **' + dName + '**! 🙂 Where are you heading?'] };
+
+  // Different lines: plan an interchange
+  if (lineOf(origin) !== lineOf(dest)) {
+    const RED_X = 'ABB';
+    const green = (engine.routes.find(r => r.line === 'green') || { ids: [] }).ids;
+    const gi = id => green.indexOf(id);
+    const centre = gi('OGP');
+    const isNorth = id => centre >= 0 && gi(id) >= 0 && gi(id) < centre;
+    const toGreen = lineOf(origin) === 'red';
+    // Southbound Green trams stop at Marlborough; northbound at O'Connell - GPO
+    const gStop = toGreen ? (isNorth(dest) ? 'OGP' : 'MAR') : (isNorth(origin) ? 'MAR' : 'OGP');
+    const haveStops = engine.byId.has(RED_X) && engine.byId.has(gStop);
+    if (!haveStops) return { paras: ['**' + oName + '** and **' + dName + '** are on different lines. Change between Abbey Street (Red) and the O\'Connell Street area (Green).'] };
+    const walkM = haversine(engine.byId.get(RED_X), engine.byId.get(gStop));
+    const firstTarget = toGreen ? RED_X : gStop;
+    const second = toGreen ? gStop : RED_X;
+    paras.push('**' + oName + '** is on the ' + lineName(lineOf(origin)) + ' and **' + dName + '** is on the ' + lineName(lineOf(dest)) + ', so you\'ll need to change.');
+    paras.push('Change between **Abbey Street** (Red) and **' + stopName(gStop) + '** (Green). They\'re only about ' + metresFmt(walkM) + ' apart on foot.');
+    if (origin === firstTarget || (!toGreen && (origin === 'MAR' || origin === 'OGP'))) {
+      // Already at the interchange: show the second leg directly
+      const sub = await destAnswer({ ...q, dest, fuzzy: [] }, second, opts);
+      return Object.assign(sub, {
+        paras: [...paras, '🚶 Walk over to **' + stopName(second) + '**, then:', ...(sub.paras || [])],
+        recheck: q, ctx: { intent: 'departures', origin, dest }
+      });
+    }
+    const sub = await destAnswer({ ...q, dest: firstTarget, fuzzy: [] }, origin, {});
+    return Object.assign(sub, {
+      paras: [...paras, '**Leg 1:** ' + oName + ' → ' + stopName(firstTarget) + ', live:', ...(sub.paras || [])],
+      after: [...(sub.after || []), '**Leg 2:** walk to ' + stopName(second) + ' and take a tram to ' + dName + '. Tap below when you get there and I\'ll check it live.'],
+      chips: [{ label: 'Next leg: ' + stopName(second) + ' → ' + dName, q: 'next tram from ' + stopName(second) + ' to ' + dName }],
+      recheck: q, ctx: { intent: 'departures', origin, dest }
+    });
+  }
+
+  // Same line but different branches (e.g. Tallaght ↔ Saggart, Connolly ↔ The Point)
+  if (!engine.commonRoute(origin, dest)) {
+    const x = engine.interchange(origin, dest);
+    paras.push('There\'s no direct tram from **' + oName + '** to **' + dName + '**: they\'re on different branches of the ' + lineName(lineOf(origin)) + '.');
+    if (!x) return { paras };
+    paras.push('Change at **' + stopName(x) + '**. Here\'s the first leg, live:');
+    const sub = await destAnswer({ ...q, dest: x, fuzzy: [] }, origin, {});
+    return Object.assign(sub, {
+      paras: [...paras, ...(sub.paras || [])],
+      chips: [{ label: 'Next leg: ' + stopName(x) + ' → ' + dName, q: 'next tram from ' + stopName(x) + ' to ' + dName }],
+      recheck: q, ctx: { intent: 'departures', origin, dest }
+    });
+  }
+
+  // Direct journey
+  const f = await getForecast(origin);
+  const all = rowsWithDir(f.dirs);
+  const serving = all.filter(t => t.due != null && engine.serves(origin, dest, engine.destToId(t.destination)));
+  const p = engine.path(origin, dest);
+  const ride = p ? p.stops * 2 : null;
+
+  const servingDirs = new Set(serving.map(t => t.dir));
+  const shortRuns = all.filter(t => servingDirs.has(t.dir) && !serving.includes(t) && t.due != null && serving[0] && t.due < serving[0].due);
+
+  if (!serving.length) {
+    paras.push('None of the trams in the current forecast at **' + oName + '** go as far as **' + dName + '**.');
+    if (all.length) paras.push('What\'s there right now: ' + all.slice(0, 4).map(t => t.destination + ' ' + dueShort(t.due)).join(', ') + '. The forecast only covers roughly the next hour, so ask me again soon.');
+  } else {
+    const first = serving[0];
+    let head = '**Next tram from ' + oName + ' to ' + dName + ': ' + (first.due <= 0 ? 'due now' : first.due + ' min') + '** (' + first.dir + ', to ' + first.destination + ').';
+    if (serving[1]) head += ' Then ' + serving.slice(1, 3).map(t => dueShort(t.due)).join(' and ') + '.';
+    paras.push(head);
+    if (shortRuns.length) paras.push('⚠️ Skip the ' + shortRuns.map(t => tramAt(t.due) + ' to ' + t.destination).join(' and the ') + ': ' + (shortRuns.length > 1 ? 'they terminate' : 'it terminates') + ' before ' + dName + '.');
+    if (q.walk != null) paras.push(walkAdvice(serving, q.walk, 'to ' + dName));
+  }
+
+  const after = [];
+  if (p) {
+    let line = '**' + p.stops + ' stop' + (p.stops === 1 ? '' : 's') + '** (' + metresFmt(p.metres) + ' along the line), roughly ' + ride + ' min on board';
+    if (serving.length) {
+      const c = q.walk != null ? catchable(serving, q.walk) : serving[0];
+      if (c) {
+        const arrive = new Date(f.at.getTime() + (c.due + ride) * 60000);
+        line += '. Taking the ' + tramAt(c.due) + ', you\'d arrive around **' + clockFmt(arrive) + '**';
+      }
+    }
+    after.push(line + '. (Ride times are an estimate of about 2 min per stop.)');
+  }
+  const msg = (f.data.message || '').trim();
+  if (msg && !isOkMessage(msg)) after.push('⚠️ ' + msg);
+
+  const rows = all.filter(t => servingDirs.size ? servingDirs.has(t.dir) : true).slice(0, 5).map(t => {
+    const ok = serving.includes(t);
+    const cMatch = q.walk != null ? catchable(serving, q.walk) === t : serving[0] === t;
+    return Object.assign({}, t, { dim: !ok, hl: ok && cMatch, note: ok ? t.dir : 'Doesn\'t reach ' + dName });
+  });
+
+  return {
+    paras, after, verifiedAt: f.at, recheck: q,
+    blocks: [{ title: oName + ' → ' + dName, rows, empty: 'No trams in the current forecast.' }],
+    ctx: { intent: opts.journey ? 'journey' : 'departures', origin, dest },
+    chips: [
+      { label: 'Return: ' + dName + ' → ' + oName, q: 'next tram from ' + dName + ' to ' + oName },
+      { label: 'Alert me 3 min before', q: 'remind me when the next tram from ' + oName + ' to ' + dName + ' is 3 minutes away' }
+    ]
+  };
+}
+
+/* ================= Alerts (watches) ================= */
+function watchLabel(w) {
+  return 'tram from ' + stopName(w.origin) + (w.dest ? ' to ' + stopName(w.dest) : w.dir ? ' (' + w.dir + ')' : '');
+}
+function watchCandidates(w, dirs) {
+  let rows = rowsWithDir(dirs);
+  if (w.dest) rows = rows.filter(t => engine.serves(w.origin, w.dest, engine.destToId(t.destination)));
+  else if (w.dir) rows = rows.filter(t => t.dir.toLowerCase().includes(w.dir));
+  return rows.filter(t => t.due != null);
+}
+function renderWatches() {
+  els.watchBar.hidden = !watches.length;
+  const frag = document.createDocumentFragment();
+  watches.forEach(w => {
+    const c = el('span', 'watch-chip', '⏰ ' + watchLabel(w) + ' · ≤' + w.threshold + ' min');
+    const x = el('button', null, '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Cancel alert');
+    x.addEventListener('click', () => cancelWatch(w.id));
+    c.appendChild(x);
+    frag.appendChild(c);
+  });
+  els.watchBar.replaceChildren(frag);
+}
+function cancelWatch(id) {
+  watches = watches.filter(w => w.id !== id);
+  renderWatches();
+  toast('Alert cancelled');
+}
+function requestNotify() {
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { /* ignore */ }
+}
+function beep() {
+  try {
+    const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+    const ac = new A(), o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.25, ac.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.6);
+    o.start(); o.stop(ac.currentTime + 0.65);
+  } catch (e) { /* ignore */ }
+}
+async function checkWatches() {
+  if (!watches.length || !engine) return;
+  for (const w of [...watches]) {
+    if (Date.now() - w.created > 90 * 60000) {
+      watches = watches.filter(x => x !== w); renderWatches();
+      addBot({ paras: ['⌛ Your alert for the ' + watchLabel(w) + ' expired after 90 minutes.'] }, 'alert');
+      continue;
+    }
+    let f;
+    try { f = await getForecast(w.origin, 5000); } catch (e) { continue; }
+    const c = watchCandidates(w, f.dirs)[0];
+    if (c && c.due <= w.threshold) {
+      watches = watches.filter(x => x !== w); renderWatches();
+      const text = 'The ' + watchLabel(w) + ' (' + c.destination + ') is ' + dueLong(c.due) + '.';
+      addBot({ paras: ['⏰ **Heads up!** ' + text + ' 🏃'], verifiedAt: f.at }, 'alert');
+      beep();
+      try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) { /* ignore */ }
+      try { if ('Notification' in window && Notification.permission === 'granted') new Notification('myLUAS', { body: text, tag: 'myluas-' + w.id }); } catch (e) { /* ignore */ }
+      if (!document.getElementById('view-ask').classList.contains('active')) els.askBadge.hidden = false;
+      toast('⏰ ' + text, 5000);
+    }
+  }
+}
+
+/* ================= Views ================= */
+function setView(v) {
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === v));
+  document.body.classList.toggle('mode-ask', v === 'ask');
+  if (v === 'ask') { els.askBadge.hidden = true; scrollChat(); if (window.matchMedia('(min-width: 980px)').matches) els.input.focus(); }
+  else window.scrollTo({ top: 0 });
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
+
+/* ================= Events ================= */
+els.select.addEventListener('change', () => selectStop(els.select.value));
+els.refresh.addEventListener('click', () => { refresh(); restartTimer(); });
+els.favBtn.addEventListener('click', () => {
+  if (favs.includes(currentStop)) { favs = favs.filter(x => x !== currentStop); toast('Removed from favourites'); }
+  else { favs = [...favs, currentStop].slice(-8); toast('★ Added ' + stopName(currentStop) + ' to favourites'); }
+  store.set(K_FAVS, JSON.stringify(favs));
+  renderFavs();
+});
+els.nearBtn.addEventListener('click', async () => {
+  els.nearBtn.classList.add('spin');
+  try {
+    if (!engine) await loadStops();
+    const pos = await getPosition();
+    const n = engine.nearest(pos.lat, pos.lng, 1)[0];
+    if (!n) throw new Error('No stops found.');
+    if (n.metres > 5000) toast('Nearest stop is ' + n.stop.name + ', ' + metresFmt(n.metres) + ' away');
+    else toast('📍 Nearest stop: ' + n.stop.name + ' (' + metresFmt(n.metres) + ')');
+    selectStop(n.stop.id);
+  } catch (e) {
+    toast(e.message, 4000);
+  } finally { els.nearBtn.classList.remove('spin'); }
+});
+
+els.composer.addEventListener('submit', e => {
+  e.preventDefault();
+  const t = els.input.value.trim();
+  if (!t) return;
+  els.input.value = '';
+  ask(t);
+});
+els.speakBtn.classList.toggle('on', speakOn);
+els.speakBtn.setAttribute('aria-pressed', speakOn ? 'true' : 'false');
+els.speakBtn.hidden = !('speechSynthesis' in window);
+els.speakBtn.addEventListener('click', () => {
+  speakOn = !speakOn;
+  store.set(K_SPEAK, speakOn ? '1' : '0');
+  els.speakBtn.classList.toggle('on', speakOn);
+  els.speakBtn.setAttribute('aria-pressed', speakOn ? 'true' : 'false');
+  toast(speakOn ? '🔊 I\'ll read answers aloud' : '🔇 Read-aloud off');
+  if (!speakOn) try { speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+});
+els.clearBtn.addEventListener('click', () => {
+  els.chatLog.replaceChildren();
+  ctx = { intent: null, origin: null, dest: null };
+  greet();
+});
+
+// Voice input (where the browser supports it)
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SR) {
+  els.micBtn.hidden = false;
+  let rec = null, listening = false;
+  els.micBtn.addEventListener('click', () => {
+    if (listening && rec) { rec.stop(); return; }
+    try {
+      rec = new SR();
+      rec.lang = 'en-IE'; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onstart = () => { listening = true; els.micBtn.classList.add('listening'); els.input.placeholder = 'Listening…'; };
+      rec.onresult = ev => {
+        const r = ev.results[ev.results.length - 1];
+        els.input.value = r[0].transcript;
+        if (r.isFinal) { const t = els.input.value.trim(); els.input.value = ''; if (t) ask(t); }
+      };
+      rec.onerror = ev => { if (ev.error !== 'aborted' && ev.error !== 'no-speech') toast('Voice input problem: ' + ev.error); };
+      rec.onend = () => { listening = false; els.micBtn.classList.remove('listening'); els.input.placeholder = 'e.g. Next tram from Jervis to Tallaght?'; };
+      rec.start();
+    } catch (e) { toast('Voice input isn\'t available here.'); }
+  });
+}
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); restartTimer(); } });
+window.addEventListener('error', e => showError('Something went wrong in the page: ' + e.message));
+window.addEventListener('unhandledrejection', e => showError('Something went wrong: ' + (e.reason && e.reason.message ? e.reason.message : e.reason)));
+
+function greet() {
+  addBot({
+    paras: ['Hi! 👋 I\'m **myLUAS**, your live Luas assistant. I fetch fresh real-time data for every answer and show you exactly when I checked it.',
+      'Ask me things like:'],
+    chips: [
+      { label: 'Next tram into town' },
+      { label: 'Next tram from Abbey Street to Tallaght' },
+      { label: 'Any delays on the Green Line?' },
+      { label: 'What can you do?' }
+    ]
+  });
+}
+
+/* ================= Start ================= */
+els.stopName.textContent = currentStop;
+showSkeleton();
+renderWatches();
+greet();
+(async () => {
+  await refresh();
+  restartTimer();
+})();
+
+})();
+</script>
+</body>
+</html>
